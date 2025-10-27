@@ -73,18 +73,77 @@ class ProductAdmin(admin.ModelAdmin):
 # ======================
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'product', 'quantity', 'total_price', 'status', 'bodaboda', 'created_at', 'delivered_at')
-    list_filter = ('status', 'created_at', 'delivered_at')
-    search_fields = ('customer__username', 'bodaboda__username', 'product__name')
-    list_select_related = ('customer', 'product', 'bodaboda')
-    readonly_fields = ('created_at', 'delivered_at')
+    list_display = (
+        'id',
+        'customer',
+        'product',
+        'quantity',
+        'total_price',
+        'status',
+        'bodaboda',
+        'claimed_by',
+        'is_delivered',
+        'bodaboda_rating',
+        'created_at',
+        'claimed_at',
+        'delivered_at',
+    )
+    list_filter = (
+        'status',
+        'is_delivered',
+        'created_at',
+        'claimed_at',
+        'delivered_at',
+    )
+    search_fields = (
+        'customer__username',
+        'bodaboda__username',
+        'claimed_by__username',
+        'product__name',
+    )
+    list_select_related = ('customer', 'product', 'bodaboda', 'claimed_by')
+    readonly_fields = ('created_at', 'claimed_at', 'delivered_at')
 
-    # Optional: Group fields nicely
     fieldsets = (
         ('Order Info', {
-            'fields': ('customer', 'product', 'quantity', 'total_price', 'status')
+            'fields': (
+                'customer',
+                'product',
+                'quantity',
+                'total_price',
+                'status',
+            )
         }),
-        ('Delivery', {
-            'fields': ('bodaboda', 'delivery_address', 'created_at', 'delivered_at')
+        ('Delivery Details', {
+            'fields': (
+                'bodaboda',
+                'delivery_address',
+                'is_delivered',
+                'bodaboda_rating',
+                'created_at',
+                'delivered_at',
+            )
+        }),
+        ('Claim Info', {
+            'fields': (
+                'claimed_by',
+                'claimed_at',
+            ),
         }),
     )
+
+    # Optional: Auto-fill claim or delivery timestamps (admin save logic)
+    def save_model(self, request, obj, form, change):
+        # Automatically set claimed_at when claimed_by changes
+        if 'claimed_by' in form.changed_data and obj.claimed_by and not obj.claimed_at:
+            from django.utils import timezone
+            obj.claimed_at = timezone.now()
+
+        # Automatically mark as delivered if status is 'delivered'
+        if obj.status == 'delivered':
+            obj.is_delivered = True
+            if not obj.delivered_at:
+                from django.utils import timezone
+                obj.delivered_at = timezone.now()
+
+        super().save_model(request, obj, form, change)
